@@ -1164,6 +1164,16 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
 @keyframes wmPulse{50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--acc) 10%,transparent)}}
 .week-moving .week-cell:empty::after{content:'انقل هنا';color:var(--acc);opacity:1;font-weight:800}
 </style>
+
+<style id="week-repeat-style">
+.week-table td{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+body.week-selecting{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.week-table td.wsel{outline:2px solid var(--acc);outline-offset:-2px;background:color-mix(in srgb,var(--acc) 24%,var(--card))!important}
+.wr-input{width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:0 12px;font:inherit;font-size:16px}
+.wr-chips{display:flex;gap:8px}.wr-chip{flex:1;min-height:42px;border:1px solid var(--line);border-radius:12px;background:var(--sec);color:var(--ink);font:inherit;font-weight:700;font-size:.85rem}
+.wr-lbl{font-size:.8rem;color:var(--mute);margin-bottom:-4px}
+.wr-chip.on{background:color-mix(in srgb,var(--acc) 28%,var(--card));border-color:var(--acc);color:var(--ink)}
+</style>
 </head>
 <body>
 <main>
@@ -1623,13 +1633,14 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
   function weekMove(amount){weekAnchor=new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+amount*7);renderWeeklySchedule();}
   function weekAdd(dateKey,slot){var label=WEEK_SLOTS.filter(function(x){return x[0]===slot;})[0];appDialog({kind:'prompt',title:'إضافة نشاط',message:'اكتب النشاط '+(label?'المرتبط بوقت '+label[1]:'')+'.',placeholder:'مثال: تسميع الورد',inputLabel:'اسم النشاط',okText:'حفظ النشاط',icon:'＋'}).then(function(value){if(value===null)return;value=value.trim();if(!value){info('اكتب اسم النشاط أولًا.');return;}var a=weekItems(dateKey,slot);a.push({id:'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),text:value,done:false});weekSave();renderWeeklySchedule();});}
   function weekToggle(dateKey,slot,id){var a=weekItems(dateKey,slot),x=a.find(function(z){return z.id===id;});if(!x)return;x.done=!x.done;weekSave();renderWeeklySchedule();}
-  function weekDelete(dateKey,slot,id){var a=weekItems(dateKey,slot),i=a.findIndex(function(z){return z.id===id;});if(i<0)return;appDialog({kind:'confirm',title:'حذف النشاط؟',message:'هل تريد حذف هذا النشاط من الجدول؟',okText:'حذف النشاط',cancelText:'الاحتفاظ به',danger:true,icon:'!'}).then(function(yes){if(!yes)return;var current=weekItems(dateKey,slot),ix=current.findIndex(function(z){return z.id===id;});if(ix<0)return;current.splice(ix,1);if(!current.length)delete weekPlan[dateKey+'|'+slot];weekSave();renderWeeklySchedule();});}
+  function weekDelete(dateKey,slot,id){var a=weekItems(dateKey,slot),i=a.findIndex(function(z){return z.id===id;});if(i<0)return;appDialog({kind:'confirm',title:'حذف النشاط؟',message:'هل تريد حذف هذا النشاط من الجدول؟',okText:'حذف النشاط',cancelText:'الاحتفاظ به',danger:true,icon:'!'}).then(function(yes){if(!yes)return;var current=weekItems(dateKey,slot),ix=current.findIndex(function(z){return z.id===id;});if(ix<0)return;weekSkipPin(dateKey,current[ix]);current.splice(ix,1);if(!current.length)delete weekPlan[dateKey+'|'+slot];weekSave();renderWeeklySchedule();});}
   var weekLP={fired:false},weekPick=null,weekLast={id:null,t:0};
   function weekMoveTo(tKey,tSlot,tId){
     var p=weekPick;if(!p)return;
     var src=weekItems(p.key,p.slot),si=src.findIndex(function(z){return z.id===p.id;});
     if(si<0||tId===p.id){weekPick=null;renderWeeklySchedule();return;}
     var dst=weekItems(tKey,tSlot);
+    [src[si]].concat(tId?[dst.filter(function(z){return z.id===tId;})[0]]:[]).forEach(function(it){if(it&&it.pin){weekSkipPin(it===src[si]?p.key:tKey,it);delete it.pin;}});
     if(tId){var di=dst.findIndex(function(z){return z.id===tId;});if(di<0)return;var a=src[si],b=dst[di];src[si]=b;dst[di]=a;}
     else{dst.push(src.splice(si,1)[0]);}
     [p.key+'|'+p.slot,tKey+'|'+tSlot].forEach(function(k){if(Array.isArray(weekPlan[k])&&!weekPlan[k].length)delete weekPlan[k];});
@@ -1640,7 +1651,7 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
     function clear(){if(timer){clearTimeout(timer);timer=null;}}
     cell.addEventListener('pointerdown',function(e){
       if(e.pointerType==='mouse'&&e.button!==0)return;
-      sx=e.clientX;sy=e.clientY;target=e.target.closest?e.target.closest('.week-item'):null;weekLP.fired=false;clear();if(!target||weekPick)return;
+      sx=e.clientX;sy=e.clientY;target=e.target.closest?e.target.closest('.week-item'):null;weekLP.fired=false;clear();if(weekPick)return;{var _td=cell.parentNode;timer=setTimeout(function(){timer=null;weekLP.fired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_e){}weekSelStart(_td,sx,sy);},380);return;}
       timer=setTimeout(function(){timer=null;weekLP.fired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_e){}
         weekMenu(key,slot,target?target.dataset.id:null,target?target.textContent:'');},450);
     });
@@ -1648,6 +1659,141 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
     ['pointerup','pointercancel','pointerleave'].forEach(function(n){cell.addEventListener(n,clear);});
     cell.addEventListener('contextmenu',function(e){e.preventDefault();});
     cell.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('.week-item'))return;if(weekPick){weekMoveTo(key,slot,null);return;}if(weekLP.fired||cell.querySelector('.week-item'))return;weekAdd(key,slot);});
+  }
+
+  /* ===== Repeat: long-press an empty cell, drag over cells, then write once ===== */
+  var weekSel={on:false,r0:0,c0:0,r1:0,c1:0,x:0,y:0,iv:null};
+  function weekSelRect(){return {rmin:Math.min(weekSel.r0,weekSel.r1),rmax:Math.max(weekSel.r0,weekSel.r1),cmin:Math.min(weekSel.c0,weekSel.c1),cmax:Math.max(weekSel.c0,weekSel.c1)};}
+  function weekSelPaint(){var tb=document.getElementById('week-tbody');if(!tb)return;var q=weekSelRect();
+    tb.querySelectorAll('td[data-r]').forEach(function(td){var r=+td.dataset.r,c=+td.dataset.c;td.classList.toggle('wsel',weekSel.on&&r>=q.rmin&&r<=q.rmax&&c>=q.cmin&&c<=q.cmax);});}
+  function weekCellAt(x,y){var el=document.elementFromPoint(x,y);return el&&el.closest?el.closest('#week-tbody td[data-r]'):null;}
+  function weekSelMove(e){weekSel.x=e.clientX;weekSel.y=e.clientY;var td=weekCellAt(weekSel.x,weekSel.y);if(td){weekSel.r1=+td.dataset.r;weekSel.c1=+td.dataset.c;weekSelPaint();}}
+  function weekSelBlock(e){if(weekSel.on&&e.cancelable)e.preventDefault();}
+  function weekSelTick(){var sc=document.querySelector('.week-scroll');if(!sc)return;var b=sc.getBoundingClientRect(),dx=0;
+    if(weekSel.x>b.right-48)dx=12;else if(weekSel.x<b.left+48)dx=-12;
+    if(dx){sc.scrollLeft+=dx;var td=weekCellAt(weekSel.x,weekSel.y);if(td){weekSel.r1=+td.dataset.r;weekSel.c1=+td.dataset.c;weekSelPaint();}}}
+  function weekSelEnd(e){
+    document.removeEventListener('pointermove',weekSelMove,true);document.removeEventListener('pointerup',weekSelUp,true);document.removeEventListener('pointercancel',weekSelCancel,true);document.removeEventListener('touchmove',weekSelBlock,{passive:false});
+    clearInterval(weekSel.iv);weekSel.iv=null;document.body.classList.remove('week-selecting');}
+  function weekSelUp(e){if(!weekSel.on)return;weekSelMove(e);weekSelEnd();weekRepeatSheet('');}
+  function weekSelCancel(){if(!weekSel.on)return;weekSelEnd();weekSel.on=false;weekSelPaint();}
+  function weekSelStart(td,x,y){
+    if(!td||weekSel.on)return;weekSel.on=true;weekSel.r0=weekSel.r1=+td.dataset.r;weekSel.c0=weekSel.c1=+td.dataset.c;weekSel.x=x;weekSel.y=y;weekSelPaint();
+    document.body.classList.add('week-selecting');
+    document.addEventListener('pointermove',weekSelMove,true);document.addEventListener('pointerup',weekSelUp,true);document.addEventListener('pointercancel',weekSelCancel,true);document.addEventListener('touchmove',weekSelBlock,{passive:false});
+    weekSel.iv=setInterval(weekSelTick,16);info('اسحب لتحديد خانات أكتر، ثم ارفع إصبعك');
+  }
+  /* ===== Pinned (recurring) activities: stored as rules in weekPlan.__pins ===== */
+  function weekNewId(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+  function weekWeeksBetween(st,d){return Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(st[0],st[1],st[2]))/864e5/7);}
+  function weekApplyPins(days){
+    var rules=weekPlan.__pins;if(!Array.isArray(rules)||!rules.length)return;var changed=false;
+    rules.forEach(function(ru){
+      var wk=weekWeeksBetween(ru.st,days[0]);if(wk<0)return;if(ru.n&&wk>=ru.n)return;if(ru.every===2&&wk%2)return;
+      var key=dkey(days[ru.c]);if(ru.skip&&ru.skip[key])return;
+      var a=weekItems(key,WEEK_SLOTS[ru.r][0]);if(a.some(function(z){return z.pin===ru.id;}))return;
+      a.push({id:weekNewId('w'),text:ru.text,done:false,pin:ru.id});changed=true;});
+    if(changed)weekSave();
+  }
+  function weekSkipPin(key,item){
+    if(!item||!item.pin||!Array.isArray(weekPlan.__pins))return;
+    weekPlan.__pins.forEach(function(ru){if(ru.id===item.pin){ru.skip=ru.skip||{};ru.skip[key]=1;}});
+  }
+  function weekUnpin(key,slot,id,quiet){
+    var it=weekItems(key,slot).filter(function(z){return z.id===id;})[0];if(!it||!it.pin)return;var pid=it.pin;
+    weekPlan.__pins=(weekPlan.__pins||[]).filter(function(ru){return ru.id!==pid;});
+    var from=dkey(weekAnchor);
+    Object.keys(weekPlan).forEach(function(k){
+      if(k==='__pins'||!Array.isArray(weekPlan[k]))return;
+      if(k.split('|')[0]>=from){weekPlan[k]=weekPlan[k].filter(function(z){return !(z.pin===pid&&!z.done&&z.id!==id);});}
+      weekPlan[k].forEach(function(z){if(z.pin===pid)delete z.pin;});
+      if(!weekPlan[k].length)delete weekPlan[k];
+    });
+    if(quiet)return;weekSave();renderWeeklySchedule();info('تم إلغاء التثبيت');
+  }
+  function weekPinSheet(ids,title){
+    if(!Array.isArray(ids))ids=[ids];var targets=[];
+    ids.forEach(function(id){var it=document.querySelector('#week-tbody .week-item[data-id="'+id+'"]'),td=it&&it.closest?it.closest('td[data-r]'):null;if(!td)return;var text=(it.textContent||'').trim();if(!text)return;targets.push({id:id,r:+td.dataset.r,c:+td.dataset.c,text:text});});
+    if(!targets.length)return;
+    var st={every:1,forever:true};
+    var ov=document.createElement('div');ov.id='week-pin';ov.className='wm-ov';var opened=Date.now();
+    var sh=document.createElement('div');sh.className='wm-sheet';sh.setAttribute('role','dialog');sh.setAttribute('aria-modal','true');
+    var t=document.createElement('div');t.className='wm-title';t.textContent=(targets.length>1?('📌 تثبيت '+targets.length+' أنشطة'):('📌 تثبيت: '+targets[0].text));sh.appendChild(t);
+    function chipRow(list,isOn,onPick){
+      var row=document.createElement('div');row.className='wr-chips';var btns=[];
+      list.forEach(function(o){var b=document.createElement('button');b.type='button';b.className='wr-chip';b.textContent=o[1];b.onclick=function(){onPick(o[0]);paint();};row.appendChild(b);btns.push([b,o[0]]);});
+      function paint(){btns.forEach(function(x){x[0].classList.toggle('on',isOn(x[1]));});}
+      paint();sh.appendChild(row);return paint;
+    }
+    var p1=chipRow([[1,'كل أسبوع'],[2,'أسبوع أيوه وأسبوع لا']],function(v){return st.every===v;},function(v){st.every=v;});
+    var inp=document.createElement('input');inp.type='number';inp.min='1';inp.max='104';inp.setAttribute('inputmode','numeric');inp.className='wr-input';inp.placeholder='أو اكتب عدد الأسابيع';inp.setAttribute('aria-label','عدد الأسابيع');
+    var p2=chipRow([['f','إلى الأبد'],[4,'4 أسابيع'],[8,'8 أسابيع'],[12,'12 أسبوع']],function(v){return v==='f'?(st.forever&&!inp.value):(!st.forever&&+inp.value===v);},function(v){if(v==='f'){st.forever=true;inp.value='';}else{st.forever=false;inp.value=String(v);}});
+    sh.appendChild(inp);
+    inp.oninput=function(){st.forever=!inp.value;p2();};
+    function close(){ov.remove();weekSel.on=false;weekSelPaint();}
+    var ok=document.createElement('button');ok.type='button';ok.className='wm-btn wm-add';ok.textContent='📌 تثبيت';
+    ok.onclick=function(){
+      var n=0;if(!st.forever){n=Math.max(0,Math.min(104,parseInt(inp.value,10)||0));if(!n){info('اكتب عدد الأسابيع.');inp.focus();return;}}
+      var made=0;
+      targets.forEach(function(g){
+        var date=new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+g.c),item=weekItems(dkey(date),WEEK_SLOTS[g.r][0]).filter(function(z){return z.id===g.id;})[0];
+        if(!item||item.pin)return;
+        var rule={id:weekNewId('p'),text:g.text,r:g.r,c:g.c,every:st.every,n:n,st:[weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()],skip:{}};
+        weekPinsList().push(rule);item.pin=rule.id;made++;});
+      if(!made){ov.remove();weekSel.on=false;weekSelPaint();info('الأنشطة المحددة مثبّتة بالفعل.');return;}
+      ov.remove();weekSel.on=false;weekSave();renderWeeklySchedule();info(made>1?('تم تثبيت '+made+' أنشطة'):'تم التثبيت');};
+    sh.appendChild(ok);
+    var cx=document.createElement('button');cx.type='button';cx.className='wm-btn wm-cx';cx.textContent='إلغاء';cx.onclick=close;sh.appendChild(cx);
+    ov.onclick=function(e){if(e.target===ov&&Date.now()-opened>500)close();};
+    ov.appendChild(sh);document.body.appendChild(ov);
+  }
+  function weekPinsList(){if(!Array.isArray(weekPlan.__pins))weekPlan.__pins=[];return weekPlan.__pins;}
+  function weekSelItems(q){
+    var out=[];
+    for(var r=q.rmin;r<=q.rmax;r++)for(var c=q.cmin;c<=q.cmax;c++){
+      var key=dkey(new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+c)),slot=WEEK_SLOTS[r][0];
+      (weekPlan[key+'|'+slot]||[]).forEach(function(it){out.push({id:it.id,key:key,slot:slot,pin:it.pin});});}
+    return out;
+  }
+  /* Write once and add to every selected cell */
+  function weekAddToRect(q){
+    var n=(q.rmax-q.rmin+1)*(q.cmax-q.cmin+1);
+    setTimeout(function(){
+      appDialog({kind:'prompt',title:'إضافة نشاط',message:n>1?('سيُضاف في '+n+' خانات.'):'',placeholder:'مثال: تسميع الورد',inputLabel:'اسم النشاط',okText:'حفظ النشاط',icon:'＋'}).then(function(value){
+        weekSel.on=false;
+        if(value===null){weekSelPaint();return;}
+        value=value.trim();if(!value){weekSelPaint();info('اكتب اسم النشاط أولًا.');return;}
+        for(var r=q.rmin;r<=q.rmax;r++)for(var c=q.cmin;c<=q.cmax;c++){
+          var d=new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+c),a=weekItems(dkey(d),WEEK_SLOTS[r][0]);
+          if(a.some(function(z){return z.text===value;}))continue;
+          a.push({id:weekNewId('w'),text:value,done:false});}
+        weekSave();renderWeeklySchedule();});
+    },180);
+  }
+  function weekRepeatSheet(){
+    var q=weekSelRect(),items=weekSelItems(q);
+    if(!items.length){weekAddToRect(q);return;}
+    var pinned=items.filter(function(x){return x.pin;}),loose=items.filter(function(x){return !x.pin;});
+    setTimeout(function(){
+      var ov=document.createElement('div');ov.id='week-actions';ov.className='wm-ov';var opened=Date.now();
+      var sh=document.createElement('div');sh.className='wm-sheet';sh.setAttribute('role','dialog');sh.setAttribute('aria-modal','true');
+      var t=document.createElement('div');t.className='wm-title';t.textContent=items.length===1?'نشاط واحد محدد':items.length+' أنشطة محددة';sh.appendChild(t);
+      function done(){ov.remove();weekSel.on=false;weekSelPaint();}
+      function btn(cls,txt,fn){var b=document.createElement('button');b.type='button';b.className='wm-btn '+cls;b.textContent=txt;b.onclick=fn;sh.appendChild(b);}
+      btn('wm-add','＋ إضافة نشاط',function(){done();weekAddToRect(q);});
+      if(loose.length)btn('wm-add','📌 تثبيت',function(){var ids=loose.map(function(x){return x.id;});ov.remove();weekPinSheet(ids,'');});
+      if(pinned.length)btn('wm-add','🚫 إلغاء التثبيت',function(){done();pinned.forEach(function(x){weekUnpin(x.key,x.slot,x.id,true);});weekSave();renderWeeklySchedule();info('تم إلغاء التثبيت');});
+      btn('wm-del','🗑 حذف',function(){
+        ov.remove();
+        appDialog({kind:'confirm',title:'حذف الأنشطة المحددة؟',message:(items.length===1?'سيتم حذف النشاط من الجدول.':'سيتم حذف '+items.length+' أنشطة من الجدول.')+(pinned.length?' المثبّتة تُحذف من هذا الأسبوع فقط.':''),okText:'حذف',cancelText:'الاحتفاظ بها',danger:true,icon:'!'}).then(function(yes){
+          weekSel.on=false;
+          if(!yes){weekSelPaint();return;}
+          items.forEach(function(x){var a=weekPlan[x.key+'|'+x.slot];if(!Array.isArray(a))return;var ix=a.findIndex(function(z){return z.id===x.id;});if(ix<0)return;weekSkipPin(x.key,a[ix]);a.splice(ix,1);if(!a.length)delete weekPlan[x.key+'|'+x.slot];});
+          weekSave();renderWeeklySchedule();info('تم الحذف');});});
+      btn('wm-cx','إلغاء',done);
+      ov.onclick=function(e){if(e.target===ov&&Date.now()-opened>500)done();};
+      ov.appendChild(sh);document.body.appendChild(ov);
+    },180);
   }
   function weekMenu(key,slot,id,title){
     var old=document.getElementById('week-menu');if(old)old.remove();
@@ -1657,8 +1803,12 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
     var t=document.createElement('div');t.className='wm-title';t.textContent=id?title:('وقت '+(label?label[1]:''));sh.appendChild(t);
     var opened=Date.now();function close(){ov.remove();}
     var add=document.createElement('button');add.type='button';add.className='wm-btn wm-add';add.textContent='＋ إضافة نشاط';add.onclick=function(){close();weekAdd(key,slot);};sh.appendChild(add);
-    if(id){var del=document.createElement('button');del.type='button';del.className='wm-btn wm-del';del.textContent='🗑 حذف النشاط';
-      del.onclick=function(){close();var cur=weekItems(key,slot),ix=cur.findIndex(function(z){return z.id===id;});if(ix<0)return;cur.splice(ix,1);if(!cur.length)delete weekPlan[key+'|'+slot];weekSave();renderWeeklySchedule();info('تم حذف النشاط');};sh.appendChild(del);}
+    if(id){var _it=weekItems(key,slot).filter(function(z){return z.id===id;})[0],rep=document.createElement('button');rep.type='button';rep.className='wm-btn wm-add';
+      if(_it&&_it.pin){rep.textContent='🚫 إلغاء التثبيت';rep.onclick=function(){close();weekUnpin(key,slot,id);};}
+      else{rep.textContent='📌 تثبيت النشاط';rep.onclick=function(){close();weekPinSheet(id,title);};}
+      sh.appendChild(rep);}
+    if(id){var del=document.createElement('button');del.type='button';del.className='wm-btn wm-del';del.textContent=(_it&&_it.pin)?'🗑 حذف من هذا الأسبوع فقط':'🗑 حذف النشاط';
+      del.onclick=function(){close();var cur=weekItems(key,slot),ix=cur.findIndex(function(z){return z.id===id;});if(ix<0)return;weekSkipPin(key,cur[ix]);cur.splice(ix,1);if(!cur.length)delete weekPlan[key+'|'+slot];weekSave();renderWeeklySchedule();info('تم حذف النشاط');};sh.appendChild(del);}
     var cx=document.createElement('button');cx.type='button';cx.className='wm-btn wm-cx';cx.textContent='إلغاء';cx.onclick=close;sh.appendChild(cx);
     ov.onclick=function(e){if(e.target===ov&&Date.now()-opened>500)close();};
     ov.appendChild(sh);document.body.appendChild(ov);
@@ -1666,13 +1816,13 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
   function renderWeeklySchedule(){
     weekAnchor=wstart(new Date());
     var start=new Date(weekAnchor),today=dkey(new Date()),days=[];for(var i=0;i<7;i++)days.push(new Date(start.getFullYear(),start.getMonth(),start.getDate()+i));
-    var end=days[6];$('week-range').textContent=fmt(start,{day:'numeric',month:'long'})+' — '+fmt(end,{day:'numeric',month:'long',year:'numeric'});
+    weekApplyPins(days);var end=days[6];$('week-range').textContent=fmt(start,{day:'numeric',month:'long'})+' — '+fmt(end,{day:'numeric',month:'long',year:'numeric'});
     var head=$('week-thead');head.textContent='';var tr=document.createElement('tr'),blank=document.createElement('th');blank.textContent='الوقت';tr.appendChild(blank);
     days.forEach(function(d,i){var th=document.createElement('th');var dn=document.createElement('span');dn.className='wk-dn';dn.textContent=WEEK_DAYS[i];var dd=document.createElement('span');dd.className='wk-dd';dd.textContent=fmt(d,{day:'numeric'});th.appendChild(dn);th.appendChild(dd);if(dkey(d)===today)th.className='week-today';tr.appendChild(th);});head.appendChild(tr);
     var body=$('week-tbody');body.textContent='';var total=0,done=0;
     WEEK_SLOTS.forEach(function(slot){var row=document.createElement('tr'),label=document.createElement('th');label.className='week-slot slot-'+slot[0];label.scope='row';label.textContent=slot[1];row.appendChild(label);
       days.forEach(function(d){var key=dkey(d),td=document.createElement('td'),cell=document.createElement('div');cell.className='week-cell';var items=weekItems(key,slot[0]);
-        td.className='slot-'+slot[0];items.forEach(function(item){total++;if(item.done)done++;var b=document.createElement('button');b.type='button';b.className='week-item'+(item.done?' done':'')+(weekPick&&weekPick.id===item.id?' picked':'');b.dataset.id=item.id;b.setAttribute('aria-pressed',String(!!item.done));b.title='اضغط للإنجاز، مرتين للنقل، مطولًا للخيارات';var text=document.createElement('span');text.className='week-item-text';text.textContent=item.text;b.appendChild(text);b.onclick=function(){if(weekLP.fired){weekLP.fired=false;return;}
+        td.className='slot-'+slot[0];td.dataset.r=String(WEEK_SLOTS.indexOf(slot));td.dataset.c=String(days.indexOf(d));items.forEach(function(item){total++;if(item.done)done++;var b=document.createElement('button');b.type='button';b.className='week-item'+(item.done?' done':'')+(weekPick&&weekPick.id===item.id?' picked':'');b.dataset.id=item.id;b.setAttribute('aria-pressed',String(!!item.done));b.title='اضغط للإنجاز، مرتين للنقل، مطولًا للخيارات';var text=document.createElement('span');text.className='week-item-text';text.textContent=item.text;b.appendChild(text);b.onclick=function(){if(weekLP.fired){weekLP.fired=false;return;}
           if(weekPick){weekMoveTo(key,slot[0],item.id);return;}
           var now=Date.now();
           if(weekLast.id===item.id&&now-weekLast.t<350){weekLast={id:null,t:0};weekToggle(key,slot[0],item.id);weekPick={key:key,slot:slot[0],id:item.id};renderWeeklySchedule();return;}
@@ -1918,7 +2068,7 @@ html,body{overscroll-behavior-x:none;overscroll-behavior-y:auto}
     var n=0;keys.forEach(function(k){if(Array.isArray(weekPlan[k]))n+=weekPlan[k].length;});
     if(!n){info('الجدول فاضي.');return;}
     appDialog({kind:'confirm',title:'مسح الكل؟',message:'سيتم حذف '+n+' نشاط من الجدول. لا يمكن التراجع عن ذلك.',okText:'نعم، امسح',cancelText:'إلغاء',danger:true,icon:'!'}).then(function(yes){
-      if(!yes)return;keys.forEach(function(k){delete weekPlan[k];});weekPick=null;weekSave();renderWeeklySchedule();info('تم المسح');});
+      if(!yes)return;keys.forEach(function(k){(weekPlan[k]||[]).forEach(function(it){weekSkipPin(k.split('|')[0],it);});delete weekPlan[k];});weekPick=null;weekSave();renderWeeklySchedule();info('تم المسح');});
   }
   $('week-clear-week').onclick=function(){weekClear(false);};
   document.addEventListener('visibilitychange',function(){if(!document.hidden){if(view==='schedule')renderWeeklySchedule();weekCloudSync();}});
