@@ -1172,6 +1172,13 @@ body.week-selecting{-webkit-user-select:none;user-select:none;-webkit-touch-call
 .wr-input{width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:0 12px;font:inherit;font-size:16px}
 .wr-chips{display:flex;gap:8px}.wr-chip{flex:1;min-height:42px;border:1px solid var(--line);border-radius:12px;background:var(--sec);color:var(--ink);font:inherit;font-weight:700;font-size:.85rem}
 .wr-lbl{font-size:.8rem;color:var(--mute);margin-bottom:-4px}
+.week-item.msel{outline:3px solid var(--acc);outline-offset:1px;background:color-mix(in srgb,var(--acc) 30%,var(--card))}
+.week-item.done,.week-table .week-item.done{position:relative;text-decoration:none;color:var(--ink);background:color-mix(in srgb,#5aa27a 24%,var(--card));border-color:color-mix(in srgb,#5aa27a 55%,transparent);border-inline-start-color:#5aa27a}
+.week-item.done .week-item-text,.week-table .week-item.done .week-item-text{opacity:.35}
+.week-item.done::before,.week-table .week-item.done::before{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;margin:0;font-size:1.5rem;font-weight:900;color:#2f8f62;text-decoration:none;pointer-events:none}
+.week-table td[data-r]{height:1px}
+.week-table .week-cell{height:100%;grid-auto-rows:1fr;align-content:stretch}
+.week-table .week-cell .week-item{height:auto;min-height:0;align-self:stretch}
 .wr-chip.on{background:color-mix(in srgb,var(--acc) 28%,var(--card));border-color:var(--acc);color:var(--ink)}
 </style>
 </head>
@@ -1651,7 +1658,7 @@ body.week-selecting{-webkit-user-select:none;user-select:none;-webkit-touch-call
     function clear(){if(timer){clearTimeout(timer);timer=null;}}
     cell.addEventListener('pointerdown',function(e){
       if(e.pointerType==='mouse'&&e.button!==0)return;
-      sx=e.clientX;sy=e.clientY;target=e.target.closest?e.target.closest('.week-item'):null;weekLP.fired=false;clear();if(weekPick)return;{var _td=cell.parentNode;timer=setTimeout(function(){timer=null;weekLP.fired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_e){}weekSelStart(_td,sx,sy);},380);return;}
+      sx=e.clientX;sy=e.clientY;target=e.target.closest?e.target.closest('.week-item'):null;weekLP.fired=false;clear();if(weekPick)return;{var _td=cell.parentNode,_tg=target;timer=setTimeout(function(){timer=null;weekLP.fired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_e){}weekSelStart(_td,sx,sy,_tg);},380);return;}
       timer=setTimeout(function(){timer=null;weekLP.fired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_e){}
         weekMenu(key,slot,target?target.dataset.id:null,target?target.textContent:'');},450);
     });
@@ -1662,26 +1669,34 @@ body.week-selecting{-webkit-user-select:none;user-select:none;-webkit-touch-call
   }
 
   /* ===== Repeat: long-press an empty cell, drag over cells, then write once ===== */
-  var weekSel={on:false,r0:0,c0:0,r1:0,c1:0,x:0,y:0,iv:null};
+  var weekSel={on:false,mode:'cell',ids:{},r0:0,c0:0,r1:0,c1:0,x:0,y:0,iv:null};
   function weekSelRect(){return {rmin:Math.min(weekSel.r0,weekSel.r1),rmax:Math.max(weekSel.r0,weekSel.r1),cmin:Math.min(weekSel.c0,weekSel.c1),cmax:Math.max(weekSel.c0,weekSel.c1)};}
-  function weekSelPaint(){var tb=document.getElementById('week-tbody');if(!tb)return;var q=weekSelRect();
-    tb.querySelectorAll('td[data-r]').forEach(function(td){var r=+td.dataset.r,c=+td.dataset.c;td.classList.toggle('wsel',weekSel.on&&r>=q.rmin&&r<=q.rmax&&c>=q.cmin&&c<=q.cmax);});}
+  function weekSelPaint(){var tb=document.getElementById('week-tbody');if(!tb)return;var q=weekSelRect(),im=weekSel.on&&weekSel.mode==='item';
+    tb.querySelectorAll('td[data-r]').forEach(function(td){var r=+td.dataset.r,c=+td.dataset.c;td.classList.toggle('wsel',weekSel.on&&!im&&r>=q.rmin&&r<=q.rmax&&c>=q.cmin&&c<=q.cmax);});
+    tb.querySelectorAll('.week-item').forEach(function(b){b.classList.toggle('msel',im&&!!weekSel.ids[b.dataset.id]);});}
+  function weekItemPos(b){var td=b.closest('td[data-r]'),r=+td.dataset.r,c=+td.dataset.c;return {id:b.dataset.id,key:dkey(new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+c)),slot:WEEK_SLOTS[r][0],r:r,c:c};}
+  function weekSelHit(x,y){
+    if(weekSel.mode==='item'){var el=document.elementFromPoint(x,y),b=el&&el.closest?el.closest('#week-tbody .week-item'):null;if(b&&b.dataset.id&&!weekSel.ids[b.dataset.id]){weekSel.ids[b.dataset.id]=weekItemPos(b);weekSelPaint();}return;}
+    var td=weekCellAt(x,y);if(td){weekSel.r1=+td.dataset.r;weekSel.c1=+td.dataset.c;weekSelPaint();}
+  }
   function weekCellAt(x,y){var el=document.elementFromPoint(x,y);return el&&el.closest?el.closest('#week-tbody td[data-r]'):null;}
-  function weekSelMove(e){weekSel.x=e.clientX;weekSel.y=e.clientY;var td=weekCellAt(weekSel.x,weekSel.y);if(td){weekSel.r1=+td.dataset.r;weekSel.c1=+td.dataset.c;weekSelPaint();}}
+  function weekSelMove(e){weekSel.x=e.clientX;weekSel.y=e.clientY;weekSelHit(weekSel.x,weekSel.y);}
   function weekSelBlock(e){if(weekSel.on&&e.cancelable)e.preventDefault();}
   function weekSelTick(){var sc=document.querySelector('.week-scroll');if(!sc)return;var b=sc.getBoundingClientRect(),dx=0;
     if(weekSel.x>b.right-48)dx=12;else if(weekSel.x<b.left+48)dx=-12;
-    if(dx){sc.scrollLeft+=dx;var td=weekCellAt(weekSel.x,weekSel.y);if(td){weekSel.r1=+td.dataset.r;weekSel.c1=+td.dataset.c;weekSelPaint();}}}
+    if(dx){sc.scrollLeft+=dx;weekSelHit(weekSel.x,weekSel.y);}}
   function weekSelEnd(e){
     document.removeEventListener('pointermove',weekSelMove,true);document.removeEventListener('pointerup',weekSelUp,true);document.removeEventListener('pointercancel',weekSelCancel,true);document.removeEventListener('touchmove',weekSelBlock,{passive:false});
     clearInterval(weekSel.iv);weekSel.iv=null;document.body.classList.remove('week-selecting');}
   function weekSelUp(e){if(!weekSel.on)return;weekSelMove(e);weekSelEnd();weekRepeatSheet('');}
   function weekSelCancel(){if(!weekSel.on)return;weekSelEnd();weekSel.on=false;weekSelPaint();}
-  function weekSelStart(td,x,y){
-    if(!td||weekSel.on)return;weekSel.on=true;weekSel.r0=weekSel.r1=+td.dataset.r;weekSel.c0=weekSel.c1=+td.dataset.c;weekSel.x=x;weekSel.y=y;weekSelPaint();
-    document.body.classList.add('week-selecting');
+  function weekSelStart(td,x,y,tg){
+    if(!td||weekSel.on)return;weekSel.on=true;weekSel.x=x;weekSel.y=y;weekSel.ids={};
+    weekSel.r0=weekSel.r1=+td.dataset.r;weekSel.c0=weekSel.c1=+td.dataset.c;
+    var im=!!(tg&&tg.dataset&&tg.dataset.id);weekSel.mode=im?'item':'cell';if(im)weekSel.ids[tg.dataset.id]=weekItemPos(tg);
+    weekSelPaint();document.body.classList.add('week-selecting');
     document.addEventListener('pointermove',weekSelMove,true);document.addEventListener('pointerup',weekSelUp,true);document.addEventListener('pointercancel',weekSelCancel,true);document.addEventListener('touchmove',weekSelBlock,{passive:false});
-    weekSel.iv=setInterval(weekSelTick,16);info('اسحب لتحديد خانات أكتر، ثم ارفع إصبعك');
+    weekSel.iv=setInterval(weekSelTick,16);info(im?'اسحب على الأنشطة اللي عايزها، ثم ارفع إصبعك':'اسحب لتحديد خانات أكتر، ثم ارفع إصبعك');
   }
   /* ===== Pinned (recurring) activities: stored as rules in weekPlan.__pins ===== */
   function weekNewId(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
@@ -1748,39 +1763,38 @@ body.week-selecting{-webkit-user-select:none;user-select:none;-webkit-touch-call
     ov.appendChild(sh);document.body.appendChild(ov);
   }
   function weekPinsList(){if(!Array.isArray(weekPlan.__pins))weekPlan.__pins=[];return weekPlan.__pins;}
-  function weekSelItems(q){
-    var out=[];
-    for(var r=q.rmin;r<=q.rmax;r++)for(var c=q.cmin;c<=q.cmax;c++){
-      var key=dkey(new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+c)),slot=WEEK_SLOTS[r][0];
-      (weekPlan[key+'|'+slot]||[]).forEach(function(it){out.push({id:it.id,key:key,slot:slot,pin:it.pin});});}
-    return out;
-  }
+
   /* Write once and add to every selected cell */
-  function weekAddToRect(q){
-    var n=(q.rmax-q.rmin+1)*(q.cmax-q.cmin+1);
+  function weekAddToCells(cells){
+    var n=cells.length;
     setTimeout(function(){
       appDialog({kind:'prompt',title:'إضافة نشاط',message:n>1?('سيُضاف في '+n+' خانات.'):'',placeholder:'مثال: تسميع الورد',inputLabel:'اسم النشاط',okText:'حفظ النشاط',icon:'＋'}).then(function(value){
         weekSel.on=false;
         if(value===null){weekSelPaint();return;}
         value=value.trim();if(!value){weekSelPaint();info('اكتب اسم النشاط أولًا.');return;}
-        for(var r=q.rmin;r<=q.rmax;r++)for(var c=q.cmin;c<=q.cmax;c++){
-          var d=new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+c),a=weekItems(dkey(d),WEEK_SLOTS[r][0]);
-          if(a.some(function(z){return z.text===value;}))continue;
-          a.push({id:weekNewId('w'),text:value,done:false});}
+        cells.forEach(function(cl){
+          var d=new Date(weekAnchor.getFullYear(),weekAnchor.getMonth(),weekAnchor.getDate()+cl.c),a=weekItems(dkey(d),WEEK_SLOTS[cl.r][0]);
+          if(a.some(function(z){return z.text===value;}))return;
+          a.push({id:weekNewId('w'),text:value,done:false});});
         weekSave();renderWeeklySchedule();});
     },180);
   }
   function weekRepeatSheet(){
-    var q=weekSelRect(),items=weekSelItems(q);
-    if(!items.length){weekAddToRect(q);return;}
+    if(weekSel.mode!=='item'){
+      var q=weekSelRect(),cells=[];for(var r=q.rmin;r<=q.rmax;r++)for(var c=q.cmin;c<=q.cmax;c++)cells.push({r:r,c:c});
+      weekAddToCells(cells);return;
+    }
+    var items=Object.keys(weekSel.ids).map(function(k){var p=weekSel.ids[k],it=(weekPlan[p.key+'|'+p.slot]||[]).filter(function(z){return z.id===p.id;})[0];return {id:p.id,key:p.key,slot:p.slot,r:p.r,c:p.c,pin:it&&it.pin};});
+    if(!items.length){weekSel.on=false;weekSelPaint();return;}
     var pinned=items.filter(function(x){return x.pin;}),loose=items.filter(function(x){return !x.pin;});
+    var cells=[],seen={};items.forEach(function(x){var k=x.r+'-'+x.c;if(!seen[k]){seen[k]=1;cells.push({r:x.r,c:x.c});}});
     setTimeout(function(){
       var ov=document.createElement('div');ov.id='week-actions';ov.className='wm-ov';var opened=Date.now();
       var sh=document.createElement('div');sh.className='wm-sheet';sh.setAttribute('role','dialog');sh.setAttribute('aria-modal','true');
       var t=document.createElement('div');t.className='wm-title';t.textContent=items.length===1?'نشاط واحد محدد':items.length+' أنشطة محددة';sh.appendChild(t);
       function done(){ov.remove();weekSel.on=false;weekSelPaint();}
       function btn(cls,txt,fn){var b=document.createElement('button');b.type='button';b.className='wm-btn '+cls;b.textContent=txt;b.onclick=fn;sh.appendChild(b);}
-      btn('wm-add','＋ إضافة نشاط',function(){done();weekAddToRect(q);});
+      btn('wm-add','＋ إضافة نشاط',function(){done();weekAddToCells(cells);});
       if(loose.length)btn('wm-add','📌 تثبيت',function(){var ids=loose.map(function(x){return x.id;});ov.remove();weekPinSheet(ids,'');});
       if(pinned.length)btn('wm-add','🚫 إلغاء التثبيت',function(){done();pinned.forEach(function(x){weekUnpin(x.key,x.slot,x.id,true);});weekSave();renderWeeklySchedule();info('تم إلغاء التثبيت');});
       btn('wm-del','🗑 حذف',function(){
