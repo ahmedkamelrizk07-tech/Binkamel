@@ -1,4 +1,4 @@
-const CACHE = 'mahami-v7';
+const CACHE = 'mahami-v12';
 const CORE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
